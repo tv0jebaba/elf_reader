@@ -1,3 +1,4 @@
+use std::env;
 use::std::fs;
 use::thiserror::Error;
 
@@ -6,6 +7,8 @@ use::thiserror::Error;
 
 #[derive(Error,Debug)]
 pub enum Error {
+    #[error("Invalid e_ident - EI_CLASS")]
+    InvalidElf,
     #[error("Can't read")]
     Io(#[from]std::io::Error),
     #[error("Reading error, bad path?")]
@@ -16,6 +19,31 @@ pub enum Error {
 
 #[repr(C)]
 #[derive(Debug)]
+
+struct Header32 {
+    e_ident: [u8; 16],  //Magic number and other info       16 - 0x00 
+    e_type: u16,        // Object file type                  2 - 0x10
+    e_machine: u16,     // Architecture                      2 - 0x12
+    e_version: u32,     // Object file version               4 - 0x14
+    e_entry: u32,       // Entry point virtual adress        4 - 0x18
+    e_phoff: u32,       // Program header table file offset  4 - 0x1C
+    e_shoff: u32,       // Section header table file offset  4 - 0x20
+    e_flags: u32,       // Processor specific flags          4 - 0x24
+    e_ehsize: u16,      // ELF header size in bytes          2 - 0x28
+    e_phentsize: u16,   // Program Header table entry size   2 - 0x2A
+    e_phnum: u16,       // Program header entry count        2 - 0x2C
+    e_shentsize: u16,   // Section header table entry size   2 - 0x2E
+    e_shnum: u16,       // Section header table entry count  2 - 0x30
+    e_shstrndx: u16,    // Section header string table index 2 - 0x32
+
+
+}
+
+
+
+#[repr(C)]
+#[derive(Debug)]
+
 
 struct Header64 {
     e_ident: [u8; 16],  //Magic number and other info       16 - 0x00 
@@ -36,6 +64,12 @@ struct Header64 {
 
 }
 
+enum Architecture {
+    Elf32,
+    Elf64,
+}
+
+
 
 fn main () {
 match read(){
@@ -43,21 +77,45 @@ match read(){
         Err(e) => println!("{:?}", e),
 }
 
+
 }
 
 fn read () -> Result<(), Error> {
-    let data: Vec<u8> = fs::read("target/release/test_projekt")?;
+    let path = env::current_exe()?;
+    let data: Vec<u8> = fs::read(path)?;
     
  
     //let header = &data[0..63]; 
     let header = parse_data(&data[0..64]);
     println!("{:?}", header); 
-
+    let Eident = set_architecture(&data[0..16]);
 
 Ok(()) 
 
 }
  
+fn set_architecture (data: &[u8]) -> Result<(), Error> {
+    let ident = &data[0..16];
+    
+  if ident.len() < 16 {
+        return Err(Error::TooSmall);
+    } else  if ident[4] == 1 {
+        println!("Elf32");
+
+    } else if ident[4] == 2 {
+        println!("Elf64");
+
+    } else { return Err(Error::InvalidElf);
+   
+          }
+
+Ok(())
+
+}
+
+
+
+
  fn parse_data (data: &[u8]) -> Result<Header64, Error> {
     if data.len() < 64 {
         return Err(Error::TooSmall);
