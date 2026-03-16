@@ -7,7 +7,7 @@ use std::convert::TryInto;
 
 #[derive(Error,Debug)]
 pub enum Error {
-    #[error("Invalid e_ident - EI_CLASS")]
+    #[error("Invalid ELF - e_ident")]
     InvalidElf,
     #[error("Can't read")]
     Io(#[from]std::io::Error),
@@ -21,10 +21,18 @@ pub enum Error {
 
 
 
-pub enum elf_ident {
-    ident([u8; 16])
     
-}
+#[derive(Debug)]
+struct EIdent {
+    magic: [u8; 4],
+    class: u8,
+    endian: u8,
+    version: u8,
+    osabi: u8,
+    abi_version: u8,
+} 
+
+
 
 #[repr(C)]
 #[derive(Debug)]
@@ -98,19 +106,31 @@ fn read () -> Result<(), Error> {
     let header = parse_data(&data[0..64]);
     println!("{:?}", header); 
    // let Eident = set_architecture(&data[0..16]);
-    let Eident: [u8; 16] = data[0..16].try_into()?;
-    let Ident = elf_ident::ident(Eident);
-    
-   parse_ident(Eident); 
+    let ident: [u8; 16] = data[0..16].try_into()?;
+    let e_ident = parse_ident(ident)?;
+    println!("Tohle je E_IDENT {:?}", e_ident);
     
 Ok(()) 
 
 }
 
 
-fn parse_ident(Eident:[u8; 16]) {
+fn parse_ident(ident:[u8; 16]) -> Result <EIdent, Error> {
+      
+    match ident  { [0x7f, b'E', b'L', b'F', class, endian, version, osabi, abi_version, ..] =>{
 
-    println!("parse IDENT {:?}", Eident[4]);
+        Ok(EIdent {
+        magic:[0x7f, b'E', b'L', b'F'],
+        class,
+        endian,
+        version,
+        osabi,
+        abi_version,
+        }) 
+    }
+            _=> Err(Error::InvalidElf),
+    }
+    
 }
 
 
