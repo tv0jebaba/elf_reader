@@ -1,7 +1,7 @@
 use std::env;
 use::std::fs;
 use::thiserror::Error;
-
+use std::convert::TryInto;
 
 
 
@@ -11,10 +11,19 @@ pub enum Error {
     InvalidElf,
     #[error("Can't read")]
     Io(#[from]std::io::Error),
+    #[error("Conversion error from slice")]
+    Slice(#[from] std::array::TryFromSliceError),
     #[error("Reading error, bad path?")]
     ReadingErr,
     #[error("Header must be 64 bytes")]
     TooSmall,
+}
+
+
+
+pub enum elf_ident {
+    ident([u8; 16])
+    
 }
 
 #[repr(C)]
@@ -64,7 +73,7 @@ struct Header64 {
 
 }
 
-enum Architecture {
+pub enum Architecture {
     Elf32,
     Elf64,
 }
@@ -88,13 +97,27 @@ fn read () -> Result<(), Error> {
     //let header = &data[0..63]; 
     let header = parse_data(&data[0..64]);
     println!("{:?}", header); 
-    let Eident = set_architecture(&data[0..16]);
-
+   // let Eident = set_architecture(&data[0..16]);
+    let Eident: [u8; 16] = data[0..16].try_into()?;
+    let Ident = elf_ident::ident(Eident);
+    
+   parse_ident(Eident); 
+    
 Ok(()) 
 
 }
- 
-fn set_architecture (data: &[u8]) -> Result<(), Error> {
+
+
+fn parse_ident(Eident:[u8; 16]) {
+
+    println!("parse IDENT {:?}", Eident[4]);
+}
+
+
+
+
+
+ /* fn set_architecture (data: &[u8]) -> Result<(), Error> {
     let ident = &data[0..16];
     
   if ident.len() < 16 {
@@ -111,7 +134,11 @@ fn set_architecture (data: &[u8]) -> Result<(), Error> {
 
 Ok(())
 
-}
+} */
+
+
+
+
 
 
 
