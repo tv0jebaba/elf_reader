@@ -3,16 +3,67 @@ use::std::fs;
 use::thiserror::Error;
 use std::convert::TryInto;
 
+const EI_MAG0: u8 = 0;		/* File identification byte 0 index */
+const ELFMAG0: u8 = 0x7f;		/* Magic number byte 0 */
+
+const EI_MAG1: u8 = 1;		/* File identification byte 1 index */
+const ELFMAG1: u8 = b'E';		/* Magic number byte 1 */
+
+const EI_MAG2: u8 =  2;		/* File identification byte 2 index */
+const ELFMAG2: u8 = b'L';		/* Magic number byte 2 */
+
+const EI_MAG3: u8 = 3;		/* File identification byte 3 index */
+const ELFMAG3: u8 = b'F';		/* Magic number byte 3 */
+
+/* Conglomeration of the identification bytes, for easy testing as a word.  */
+const ELFMAG: &str = "\x7FELF";
+const	SELFMAG: u8 =		4;
+
+const EI_CLASS: u8 =	4;		/* File class byte index */
+const ELFCLASSNONE: u8 =0;		/* Invalid class */
+const ELFCLASS32: u8 =	1;		/* 32-bit objects */
+const ELFCLASS64: u8 =	2;		/* 64-bit objects */
+const ELFCLASSNUM: u8 =	3;
+
+const EI_DATA: u8 =		5;		/* Data encoding byte index */
+const ELFDATANONE: u8 =	0;		/* Invalid data encoding */
+const ELFDATA2LSB: u8 =	1;		/* 2's complement, little endian */
+const ELFDATA2MSB: u8 =	2;		/* 2's complement, big endian */
+const ELFDATANUM: u8 =	3;
+
+const EI_VERSION: u8 =	6;		/* File version byte index */
+ 			/* Value must be EV_CURRENT */
+const EI_OSABI: u8 = 7;		/* OS ABI identification */
+const ELFOSABI_NONE: u8 =		0;	/* UNIX System V ABI */
+const ELFOSABI_SYSV: u8 =		0;	/* Alias.  */
+const ELFOSABI_HPUX: u8 =		1;	/* HP-UX */
+const ELFOSABI_NETBSD: u8 =		2;	/* NetBSD.  */
+const ELFOSABI_GNU: u8 =		3;	/* Object uses GNU ELF extensions.  */
+const ELFOSABI_LINUX: u8 =		ELFOSABI_GNU; /* Compatibility alias.  */
+const ELFOSABI_SOLARIS: u8 =	6;	/* Sun Solaris.  */
+const ELFOSABI_AIX: u8 =	    7;	/* IBM AIX.  */
+const ELFOSABI_IRIX: u8 =       8;	/* SGI Irix.  */
+const ELFOSABI_FREEBSD: u8 =    9;	/* FreeBSD.  */
+const ELFOSABI_TRU64: u8 =      10;	/* Compaq TRU64 UNIX.  */
+const ELFOSABI_MODESTO: u8 =    11;	/* Novell Modesto.  */
+const ELFOSABI_OPENBSD: u8 =    12;	/* OpenBSD.  */
+const ELFOSABI_ARM_AEABI: u8 =  64;	/* ARM EABI */
+const ELFOSABI_ARM: u8 =        97;	/* ARM */
+const ELFOSABI_STANDALONE: u8 =	255;	/* Standalone (embedded) application */
+
+const EI_ABIVERSION : u8 =	8;		/* ABI version */
+
+const EI_PAD : u8 =		9;		/* Byte index of padding bytes */
 
 
 #[derive(Error,Debug)]
 pub enum Error {
-    #[error("Invalid ELF - e_ident")]
-    InvalidElf,
     #[error("Can't read")]
     Io(#[from]std::io::Error),
     #[error("Conversion error from slice")]
     Slice(#[from] std::array::TryFromSliceError),
+    #[error("Invalid ELF - e_ident")]
+    InvalidElf,
     #[error("Reading error, bad path?")]
     ReadingErr,
     #[error("Header must be 64 bytes")]
@@ -30,6 +81,7 @@ struct EIdent {
     version: u8,
     osabi: u8,
     abi_version: u8,
+    padding: [u8; 7]
 } 
 
 
@@ -100,64 +152,51 @@ match read(){
 fn read () -> Result<(), Error> {
     let path = env::current_exe()?;
     let data: Vec<u8> = fs::read(path)?;
-    
+    let ident: [u8; 16] = data[0..16].try_into()?;
  
-    //let header = &data[0..63]; 
+     
     let header = parse_data(&data[0..64]);
     println!("{:?}", header); 
-   // let Eident = set_architecture(&data[0..16]);
-    let ident: [u8; 16] = data[0..16].try_into()?;
-    let e_ident = parse_ident(ident)?;
-    println!("Tohle je E_IDENT {:?}", e_ident);
+   
     
-Ok(()) 
+    let e_ident = parse_ident(ident)?;  //validation ELF
+    println!("Tohle je E_IDENT {:?}", e_ident);
+   
+    
+
+
+    Ok(()) 
 
 }
 
 
 fn parse_ident(ident:[u8; 16]) -> Result <EIdent, Error> {
       
-    match ident  { [0x7f, b'E', b'L', b'F', class, endian, version, osabi, abi_version, ..] =>{
+    match ident  { [0x7f, b'E', b'L', b'F', class, endian, version, osabi, abi_version, padding @..] =>{
+    let padding_array: [u8; 7] = padding;
+
+    if padding.len() != 7 {
+        return Err(Error::InvalidElf);
+   
+    }
 
         Ok(EIdent {
         magic:[0x7f, b'E', b'L', b'F'],
-        class,
-        endian,
-        version,
-        osabi,
-        abi_version,
+        class:      ident[4],
+        endian:     ident[5],
+        version:    ident[6],
+        osabi:      ident[7],
+        abi_version:ident[8],
+        padding: padding_array
         }) 
+      
     }
-            _=> Err(Error::InvalidElf),
-    }
-    
-}
-
-
-
-
-
- /* fn set_architecture (data: &[u8]) -> Result<(), Error> {
-    let ident = &data[0..16];
-    
-  if ident.len() < 16 {
-        return Err(Error::TooSmall);
-    } else  if ident[4] == 1 {
-        println!("Elf32");
-
-    } else if ident[4] == 2 {
-        println!("Elf64");
-
-    } else { return Err(Error::InvalidElf);
    
-          }
 
-Ok(())
+    _=> Err(Error::InvalidElf),
 
-} */
-
-
-
+        }
+  }
 
 
 
@@ -165,9 +204,9 @@ Ok(())
 
  fn parse_data (data: &[u8]) -> Result<Header64, Error> {
     if data.len() < 64 {
+    
         return Err(Error::TooSmall);
-    }
-
+}
     Ok(Header64 {
         e_ident:data[0..16].try_into().unwrap(),
         e_type: u16::from_le_bytes(data[16..18].try_into().unwrap()),
