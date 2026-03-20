@@ -62,6 +62,8 @@ pub enum Error {
     Io(#[from]std::io::Error),
     #[error("Conversion error from slice")]
     Slice(#[from] std::array::TryFromSliceError),
+    #[error("Invalid padding - e_ident")]
+    InvalidPadding,
     #[error("Invalid ELF - e_ident")]
     InvalidElf,
     #[error("Reading error, bad path?")]
@@ -152,14 +154,36 @@ match read(){
 fn read () -> Result<(), Error> {
     let path = env::current_exe()?;
     let data: Vec<u8> = fs::read(path)?;
-    let ident: [u8; 16] = data[0..16].try_into()?;
- 
+    
+    //let ident: [u8; 16] = data.get(0..16); // slice 16b e_ident 
+    let ident:[u8; 16] = match data.get(0..16) {
+        Some(slice) => {
+            match slice.try_into() {
+                Ok(ident) => {
+                    println!("Ok ident");
+                ident
+                }
+           
+                Err(_) => {
+                    println!("Error ident");
+                    [0; 16]
+                }
+            }
+       
+        
+        }
+   
+        None => {
+            println!("Data moc krátká");
+            [0; 16]
+        }
+    };
      
-    let header = parse_data(&data[0..64]);
+    let header = parse_data(&data[0..64]); //slice 64b header 
     println!("{:?}", header); 
    
     
-    let e_ident = parse_ident(ident)?;  //validation ELF
+    let e_ident = parse_ident(ident);  //validation ELF
     println!("Tohle je E_IDENT {:?}", e_ident);
    
     
@@ -173,11 +197,11 @@ fn read () -> Result<(), Error> {
 fn parse_ident(ident:[u8; 16]) -> Result <EIdent, Error> {
       
     match ident  { [0x7f, b'E', b'L', b'F', class, endian, version, osabi, abi_version, padding @..] =>{
-    let padding_array: [u8; 7] = padding;
-
+    let padding_array: [u8; 7] = padding; //padding e_ident 7b
+    
     if padding.len() != 7 {
-        return Err(Error::InvalidElf);
-   
+        return Err(Error::InvalidPadding);
+  
     }
 
         Ok(EIdent {

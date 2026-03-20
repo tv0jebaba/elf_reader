@@ -10,3 +10,5 @@ I made parse_ident function for distinguish elf32-64 where i parse full e_ident 
 Destruct Struct with e_ident and make elf valid or invalid with match pattern. I try do this but i still think about more clear version
 
 Today fight with nvim primary :D, and made little update with elf identification struct and make e_ident constants for later
+
+No time but still try to make code better and try new variant.
